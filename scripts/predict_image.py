@@ -3,10 +3,10 @@ from keras.models import load_model
 from keras.preprocessing import image
 import numpy as np
 
-model = load_model('models/CoffeeRoast_MobileNetV2_YCbCr_final.keras')
+model = load_model('models/model_dagi/cobamodel/cnn_final_model3.keras')
 
-img_path = 'dataset/sample/dark/dark_sample.jpg'
-img = image.load_img(img_path, target_size=(224, 224))
+img_path = 'dataset/test/Light/light (1).png'
+img = image.load_img(img_path, target_size=(128, 128))
 img_array = image.img_to_array(img)
 img_array = cv2.cvtColor(img_array.astype('uint8'), cv2.COLOR_RGB2YCrCb)
 img_array = np.expand_dims(img_array, axis=0) / 255.0

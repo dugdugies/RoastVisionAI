@@ -1,160 +1,120 @@
 import os
 import numpy as np
+import pandas as pd
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout, BatchNormalization, Input
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.utils.class_weight import compute_class_weight
+from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix
 
 # =========================================================
-# 1️⃣ KONFIGURASI DASAR
+# 1. KONFIGURASI
 # =========================================================
-COLOR_MODE = "YCbCr"  # 🔄 Ubah ke "RGB" kalau mau dataset asli
-EPOCHS_PHASE1 = 100
-EPOCHS_PHASE2 = 100
+IMG_SIZE = 224
 BATCH_SIZE = 16
-IMG_SIZE = (224, 224)
-MODEL_DIR = "models"
-
-# Tentukan dataset berdasarkan COLOR_MODE
-if COLOR_MODE == "YCbCr":
-    BASE_DIR = "dataset/preprocessed"
-else:
-    BASE_DIR = "dataset/raw"
+EPOCHS_PHASE1 = 50
+EPOCHS_PHASE2 = 50
+MODEL_DIR = "models/mobilevnet/"
+CSV_PATH = "dataset/Coffee Bean.csv"
+DATASET_BASE = "dataset/"
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-print(f"\n🎨 Mode Warna Aktif: {COLOR_MODE}")
-print(f"📂 Dataset digunakan: {BASE_DIR}")
+# =========================================================
+# 2. LOAD CSV
+# =========================================================
+df = pd.read_csv(CSV_PATH)
+
+train_df = df[df["data set"] == "train"]
+test_df  = df[df["data set"] == "test"]
+
+print("Train samples:", len(train_df))
+print("Test samples :", len(test_df))
+
+num_classes = len(df["class index"].unique())
 
 # =========================================================
-# 2️⃣ IMAGE DATA GENERATOR
+# 3. Fungsi Load Dataset
 # =========================================================
-if COLOR_MODE == "YCbCr":
-    # Dataset hasil preprocessing → gunakan normalisasi umum
-    train_datagen = ImageDataGenerator(
-        rescale=1./255,
-        rotation_range=15,
-        zoom_range=0.15,
-        brightness_range=[0.85, 1.15],
-        horizontal_flip=True,
-        vertical_flip=False,
-        shear_range=0.1,
-        width_shift_range=0.15,
-        height_shift_range=0.15,
-        fill_mode='nearest',
-        validation_split=0.2
-    )
+def load_image(path):
+    full_path = os.path.join(DATASET_BASE, path)
+    img = load_img(full_path, target_size=(IMG_SIZE, IMG_SIZE))
+    img = img_to_array(img)
+    img = preprocess_input(img)   # MobileNetV2 preprocessing
+    return img
 
-    val_datagen = ImageDataGenerator(
-        rescale=1./255,
-        validation_split=0.2
-    )
+def load_dataset(df):
+    images, labels = [], []
+    for _, row in df.iterrows():
+        img = load_image(row["filepaths"])
+        images.append(img)
+        labels.append(row["class index"])
+    return np.array(images), np.array(labels)
 
-else:
-    # Dataset RGB asli → gunakan preprocess_input bawaan MobileNetV2
-    train_datagen = ImageDataGenerator(
-        preprocessing_function=preprocess_input,
-        rotation_range=15,
-        zoom_range=0.15,
-        brightness_range=[0.85, 1.15],
-        horizontal_flip=True,
-        vertical_flip=False,
-        shear_range=0.1,
-        width_shift_range=0.15,
-        height_shift_range=0.15,
-        fill_mode='nearest',
-        validation_split=0.2
-    )
+print("\nLoading training images...")
+x_train, y_train = load_dataset(train_df)
 
-    val_datagen = ImageDataGenerator(
-        preprocessing_function=preprocess_input,
-        validation_split=0.2
-    )
+print("Loading testing images...")
+x_test, y_test = load_dataset(test_df)
+
+# One-hot encoding
+y_train_oh = tf.keras.utils.to_categorical(y_train, num_classes)
+y_test_oh  = tf.keras.utils.to_categorical(y_test, num_classes)
 
 # =========================================================
-# 3️⃣ LOAD DATASET
-# =========================================================
-train_data = train_datagen.flow_from_directory(
-    BASE_DIR,
-    target_size=IMG_SIZE,
-    batch_size=BATCH_SIZE,
-    class_mode="categorical",
-    subset="training",
-    shuffle=True,
-    seed=42
-)
-
-val_data = val_datagen.flow_from_directory(
-    BASE_DIR,
-    target_size=IMG_SIZE,
-    batch_size=BATCH_SIZE,
-    class_mode="categorical",
-    subset="validation",
-    shuffle=False,
-    seed=42
-)
-
-print("\n🔎 Kelas terdeteksi:", train_data.class_indices)
-print(f"📊 Training samples: {train_data.samples}")
-print(f"📊 Validation samples: {val_data.samples}")
-
-# =========================================================
-# 4️⃣ CLASS WEIGHTS
+# 4. CLASS WEIGHT
 # =========================================================
 class_weights = compute_class_weight(
-    'balanced',
-    classes=np.unique(train_data.classes),
-    y=train_data.classes
+    "balanced",
+    classes=np.unique(y_train),
+    y=y_train
 )
-class_weight_dict = dict(enumerate(class_weights))
-print("\n⚖️ Class Weights:", class_weight_dict)
+class_weights = dict(enumerate(class_weights))
+print("\nClass Weights:", class_weights)
 
 # =========================================================
-# 5️⃣ BANGUN MODEL
+# 5. BANGUN MODEL
 # =========================================================
-print("\n🔧 Loading MobileNetV2...")
 base_model = MobileNetV2(
-    input_shape=(224, 224, 3),
+    input_shape=(IMG_SIZE, IMG_SIZE, 3),
     include_top=False,
     weights='imagenet'
 )
 base_model.trainable = False
 
 model = Sequential([
-    Input(shape=(224, 224, 3)),
+    Input(shape=(IMG_SIZE, IMG_SIZE, 3)),
     base_model,
     GlobalAveragePooling2D(),
     BatchNormalization(),
-    Dense(512, activation='relu'),
+    Dense(512, activation="relu"),
     Dropout(0.4),
-    Dense(256, activation='relu'),
+    Dense(256, activation="relu"),
     Dropout(0.3),
-    Dense(128, activation='relu'),
+    Dense(128, activation="relu"),
     Dropout(0.2),
-    Dense(3, activation='softmax')
-], name=f"CoffeeRoast_{COLOR_MODE}")
+    Dense(num_classes, activation="softmax")
+])
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    optimizer=tf.keras.optimizers.Adam(0.001),
     loss="categorical_crossentropy",
     metrics=["accuracy"]
 )
 
-print("\n📋 Model Summary:")
 model.summary()
 
 # =========================================================
-# 6️⃣ CALLBACKS
+# 6. CALLBACKS
 # =========================================================
 checkpoint_phase1 = ModelCheckpoint(
-    filepath=os.path.join(MODEL_DIR, f"coffee_phase1_best_{COLOR_MODE}.keras"),
+    os.path.join(MODEL_DIR, "phase1_best.keras"),
     monitor="val_accuracy",
     save_best_only=True,
     verbose=1
@@ -162,7 +122,7 @@ checkpoint_phase1 = ModelCheckpoint(
 
 early_stop = EarlyStopping(
     monitor="val_loss",
-    patience=12,
+    patience=10,
     restore_best_weights=True,
     verbose=1
 )
@@ -176,103 +136,74 @@ reduce_lr = ReduceLROnPlateau(
 )
 
 # =========================================================
-# 7️⃣ PHASE 1 TRAINING (Frozen Base)
+# 7. PHASE 1 TRAINING (BASE FROZEN)
 # =========================================================
-print("\n" + "="*60)
-print(f"🚀 PHASE 1 Training ({COLOR_MODE}) - Base Frozen")
-print("="*60)
-
-history_phase1 = model.fit(
-    train_data,
-    validation_data=val_data,
+history1 = model.fit(
+    x_train, y_train_oh,
+    validation_split=0.2,
     epochs=EPOCHS_PHASE1,
-    class_weight=class_weight_dict,
+    class_weight=class_weights,
     callbacks=[checkpoint_phase1, early_stop, reduce_lr],
+    batch_size=BATCH_SIZE,
     verbose=1
 )
 
 # =========================================================
-# 8️⃣ PHASE 2 FINE-TUNING
+# 8. PHASE 2 FINE TUNING
 # =========================================================
-print("\n" + "="*60)
-print(f"🔥 PHASE 2 Fine-Tuning ({COLOR_MODE})")
-print("="*60)
-
 base_model.trainable = True
 for layer in base_model.layers[:-30]:
     layer.trainable = False
 
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=0.00005),
+    optimizer=tf.keras.optimizers.Adam(0.00005),
     loss="categorical_crossentropy",
     metrics=["accuracy"]
 )
 
 checkpoint_phase2 = ModelCheckpoint(
-    filepath=os.path.join(MODEL_DIR, f"coffee_phase2_best_{COLOR_MODE}.keras"),
+    os.path.join(MODEL_DIR, "phase2_best.keras"),
     monitor="val_accuracy",
     save_best_only=True,
     verbose=1
 )
 
-history_phase2 = model.fit(
-    train_data,
-    validation_data=val_data,
+history2 = model.fit(
+    x_train, y_train_oh,
+    validation_split=0.2,
     epochs=EPOCHS_PHASE2,
-    class_weight=class_weight_dict,
+    class_weight=class_weights,
     callbacks=[checkpoint_phase2, early_stop, reduce_lr],
+    batch_size=BATCH_SIZE,
     verbose=1
 )
 
 # =========================================================
-# 9️⃣ SIMPAN MODEL FINAL
+# 9. SIMPAN MODEL FINAL
 # =========================================================
-final_model_path = os.path.join(MODEL_DIR, f"CoffeeRoast_MobileNetV2_{COLOR_MODE}_final.keras")
-model.save(final_model_path)
-
-print("\n" + "="*60)
-print("✅ Training Selesai!")
-print("="*60)
-print(f"📁 Model Phase 1: {MODEL_DIR}/coffee_phase1_best_{COLOR_MODE}.keras")
-print(f"📁 Model Phase 2: {MODEL_DIR}/coffee_phase2_best_{COLOR_MODE}.keras")
-print(f"📁 Model Final: {final_model_path}")
+final_path = os.path.join(MODEL_DIR, "CoffeeRoast_final.keras")
+model.save(final_path)
+print(f"\nModel saved to: {final_path}")
 
 # =========================================================
-# 🔟 EVALUASI
+# 10. EVALUASI
 # =========================================================
-print("\n" + "="*60)
-print(f"📊 Evaluasi Model ({COLOR_MODE})")
-print("="*60)
+print("\nEvaluating model...")
+test_loss, test_acc = model.evaluate(x_test, y_test_oh, verbose=0)
+print(f"Test Accuracy: {test_acc*100:.2f}%")
+print(f"Test Loss    : {test_loss:.4f}")
 
-val_loss, val_acc = model.evaluate(val_data, verbose=0)
-print(f"✅ Validation Accuracy: {val_acc*100:.2f}%")
-print(f"❌ Validation Loss: {val_loss:.4f}")
+preds = np.argmax(model.predict(x_test), axis=1)
 
-print("\n🔍 Generating predictions...")
-val_predictions, val_labels = [], []
-for images, labels in val_data:
-    preds = model.predict(images, verbose=0)
-    val_predictions.extend(np.argmax(preds, axis=1))
-    val_labels.extend(np.argmax(labels, axis=1))
-    if len(val_predictions) >= val_data.samples:
-        break
+print("\nClassification Report:")
+print(classification_report(y_test, preds))
 
-val_predictions = val_predictions[:val_data.samples]
-val_labels = val_labels[:val_data.samples]
+cm = confusion_matrix(y_test, preds)
 
-class_names = list(train_data.class_indices.keys())
-cm = confusion_matrix(val_labels, val_predictions)
-
-print("\n📋 Classification Report:")
-print(classification_report(val_labels, val_predictions, target_names=class_names))
-
-plt.figure(figsize=(8,6))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-            xticklabels=class_names, yticklabels=class_names)
-plt.title(f'Confusion Matrix - Coffee Roast ({COLOR_MODE})')
-plt.ylabel('True Label')
-plt.xlabel('Predicted Label')
-plt.tight_layout()
-plt.savefig(os.path.join(MODEL_DIR, f'confusion_matrix_{COLOR_MODE}.png'))
-
-print("\n✨ Selesai!")
+plt.figure(figsize=(7,6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.title("Confusion Matrix (CSV)")
+plt.ylabel("True")
+plt.xlabel("Predicted")
+plt.savefig(os.path.join(MODEL_DIR, "confusion_matrix_csv.png"))
+print("\nDone.")
