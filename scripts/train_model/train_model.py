@@ -21,6 +21,7 @@ BATCH_SIZE = 16
 EPOCHS_PHASE1 = 50
 EPOCHS_PHASE2 = 50
 MODEL_DIR = "models/mobilevnet/"
+
 CSV_PATH = "dataset/Coffee Bean.csv"
 DATASET_BASE = "dataset/"
 

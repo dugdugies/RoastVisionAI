@@ -1,8 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
-from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
@@ -10,60 +8,82 @@ import seaborn as sns
 import os
 
 
-# ==========================
-# 1. Load CSV
-# ==========================
-csv_path = "dataset/Coffee Bean.csv"
-df = pd.read_csv(csv_path)
+# ================================================================
+# 1. Load Dataset dari Folder (Auto Train/Test Split 90:10)
+# ================================================================
 
-train_df = df[df["data set"] == "train"]
-test_df  = df[df["data set"] == "test"]
-
-print("Train:", len(train_df))
-print("Test :", len(test_df))
-
-
-# ==========================
-# 2. Load Dataset
-# ==========================
+DATASET_PATH = "augmented_dataset"   # folder utama dataset
 IMG_SIZE = 128
+BATCH_SIZE = 32
 
-def load_image(path):
-    img = load_img("dataset/" + path, target_size=(IMG_SIZE, IMG_SIZE))
-    img = img_to_array(img) / 255.0
-    return img
+train_ds = tf.keras.utils.image_dataset_from_directory(
+    DATASET_PATH,
+    image_size=(IMG_SIZE, IMG_SIZE),
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    validation_split=0.1,      # 10% untuk test set
+    subset="training",
+    seed=42
+)
 
-def load_dataset(df):
+test_ds = tf.keras.utils.image_dataset_from_directory(
+    DATASET_PATH,
+    image_size=(IMG_SIZE, IMG_SIZE),
+    batch_size=BATCH_SIZE,
+    shuffle=False,
+    validation_split=0.1,
+    subset="validation",
+    seed=42
+)
+
+class_names = train_ds.class_names
+num_classes = len(class_names)
+
+print("Classes:", class_names)
+print(f"Train batches: {len(train_ds)}")
+print(f"Test batches : {len(test_ds)}")
+
+
+# ================================================================
+# 2. Convert Dataset ke NumPy Arrays (biar cocok dengan CNN kamu)
+# ================================================================
+
+def ds_to_numpy(dataset):
     images, labels = [], []
+    for batch_imgs, batch_labels in dataset:
+        images.append(batch_imgs.numpy())
+        labels.append(batch_labels.numpy())
+    return np.vstack(images), np.concatenate(labels)
 
-    for i, row in df.iterrows():
-        img = load_image(row["filepaths"])
-        images.append(img)
-        labels.append(row["class index"])
+x_train, y_train = ds_to_numpy(train_ds)
+x_test , y_test  = ds_to_numpy(test_ds)
 
-    return np.array(images), np.array(labels)
+# Normalisasi 0–1
+x_train = x_train / 255.0
+x_test  = x_test / 255.0
 
-x_train, y_train = load_dataset(train_df)
-x_test, y_test   = load_dataset(test_df)
+print("x_train:", x_train.shape)
+print("x_test :", x_test.shape)
 
 
-# ==========================
-# 3. FULL CNN
-# ==========================
-def create_full_cnn(num_classes=4):
+# ================================================================
+# 3. FULL CNN Architecture
+# ================================================================
+
+def create_full_cnn(num_classes=num_classes):
     inputs = layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
 
     x = layers.Conv2D(32, (3,3), activation="relu", padding="same")(inputs)
-    x = layers.AveragePooling2D(pool_size=(2,2))(x)
+    x = layers.AveragePooling2D((2,2))(x)
 
     x = layers.Conv2D(64, (3,3), activation="relu", padding="same")(x)
-    x = layers.AveragePooling2D(pool_size=(2,2))(x)
+    x = layers.AveragePooling2D((2,2))(x)
 
     x = layers.Conv2D(128, (3,3), activation="relu", padding="same")(x)
-    x = layers.AveragePooling2D(pool_size=(2,2))(x)
+    x = layers.AveragePooling2D((2,2))(x)
 
     x = layers.Conv2D(256, (3,3), activation="relu", padding="same")(x)
-    x = layers.AveragePooling2D(pool_size=(2,2))(x)
+    x = layers.AveragePooling2D((2,2))(x)
 
     x = layers.Flatten()(x)
     x = layers.Dense(256, activation="relu")(x)
@@ -80,7 +100,6 @@ def create_full_cnn(num_classes=4):
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"]
     )
-
     return model
 
 
@@ -88,18 +107,20 @@ model = create_full_cnn()
 model.summary()
 
 
-# ==========================
-# 4. Buat folder penyimpanan
-# ==========================
+# ================================================================
+# 4. Folder Penyimpanan Model
+# ================================================================
+
 save_dir = "models/model_dagi/cobamodel"
 os.makedirs(save_dir, exist_ok=True)
 
-checkpoint_path = os.path.join(save_dir, "best_cnn_model.keras")
+best_model_path = os.path.join(save_dir, "best_cnn_model.keras")
 
 
-# ==========================
+# ================================================================
 # 5. Callbacks
-# ==========================
+# ================================================================
+
 callbacks = [
     EarlyStopping(
         monitor="val_loss",
@@ -107,7 +128,7 @@ callbacks = [
         restore_best_weights=True
     ),
     ModelCheckpoint(
-        filepath=checkpoint_path,
+        filepath=best_model_path,
         monitor="val_loss",
         save_best_only=True,
         verbose=1
@@ -115,31 +136,35 @@ callbacks = [
 ]
 
 
-# ==========================
-# 6. Train
-# ==========================
+# ================================================================
+# 6. Training Model
+# ================================================================
+
 history = model.fit(
     x_train, y_train,
     validation_split=0.1,
     epochs=40,
     batch_size=32,
-    callbacks=callbacks
+    callbacks=callbacks,
+    verbose=1
 )
 
 
-# ==========================
+# ================================================================
 # 7. Save Final Model
-# ==========================
-final_path = os.path.join(save_dir, "cnn_final_model3.keras")
-model.save(final_path)
+# ================================================================
 
-print("Model terbaik:", checkpoint_path)
-print("Model final:  ", final_path)
+final_model_path = os.path.join(save_dir, "cnn_final_model.keras")
+model.save(final_model_path)
+
+print("\nModel terbaik:", best_model_path)
+print("Model final  :", final_model_path)
 
 
-# ==========================
-# 8. Plot Training Graph
-# ==========================
+# ================================================================
+# 8. Plot Loss & Accuracy
+# ================================================================
+
 plt.figure(figsize=(12,4))
 
 # Loss
@@ -159,22 +184,27 @@ plt.legend()
 plt.show()
 
 
-# ==========================
-# 9. Confusion Matrix + Evaluasi
-# ==========================
-y_pred = np.argmax(model.predict(x_test), axis=1)
+# ================================================================
+# 9. Confusion Matrix & Classification Report
+# ================================================================
 
-labels = ["Dark", "Green", "Light", "Medium"]
+y_pred = np.argmax(model.predict(x_test), axis=1)
 
 cm = confusion_matrix(y_test, y_pred)
 
 plt.figure(figsize=(6,6))
-sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
-            xticklabels=labels, yticklabels=labels)
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=class_names,
+    yticklabels=class_names
+)
 plt.title("Confusion Matrix - Full CNN")
 plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.show()
 
 print("\nClassification Report:")
-print(classification_report(y_test, y_pred, target_names=labels))
+print(classification_report(y_test, y_pred, target_names=class_names))

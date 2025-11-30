@@ -14,7 +14,7 @@ import time
 UPLOAD_FOLDER = 'dataset/esp32-cam'
 FIXED_FILENAME = 'latest.jpg'
 MODEL_PATHS = [
-    "models/model_dagi/cnn_raw/best/cnn_final_model3.keras"
+    "models/model_dagi/cobamodel/cnn_final_model.keras"
 ]
 IMG_SIZE = (128, 128)
 ALLOWED_EXT = {'jpg', 'jpeg', 'png'}
