@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoastVision AI - Dashboard</title>
+    <link rel="icon" href="/logo" type="logo-kopi">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+            background: linear-gradient(135deg, #3a3a52 0%, #4a4a62 100%);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #ffd89b 0%, #ff6b6b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #b0b0c0;
+            font-size: 1.1em;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #3a3a52 0%, #4a4a62 100%);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0,0,0,0.3);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #9090a0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card.green .stat-value { color: #4ade80; }
+        .stat-card.light .stat-value { color: #fbbf24; }
+        .stat-card.medium .stat-value { color: #fb923c; }
+        .stat-card.dark .stat-value { color: #7c3aed; }
+        .stat-card.total .stat-value { color: #60a5fa; }
+
+        .chart-section {
+            background: linear-gradient(135deg, #3a3a52 0%, #4a4a62 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .chart-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 250px;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, var(--bar-color), var(--bar-color-light));
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            transition: all 0.3s ease;
+            min-height: 20px;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
+        }
+
+        .bar:hover {
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+
+        .bar-label {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.9em;
+            color: #b0b0c0;
+            white-space: nowrap;
+        }
+
+        .bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            color: #ffffff;
+            font-size: 1.1em;
+        }
+
+        .results-section {
+            margin-top: 40px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #ffffff;
+        }
+
+        /* .refresh-btn {
+            background: linear-gradient(135deg, #ffd89b 0%, #ff6b6b 100%);
+            color: #1e1e2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s ease;
+            font-size: 1em;
+        } */
+
+        /* .refresh-btn:hover {
+            transform: scale(1.05);
+        } */
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #3a3a52 0%, #4a4a62 100%);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .result-card:hover {
+            transform: translateY(-8px);
+        }
+
+        .result-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #2d2d44;
+        }
+
+        .result-info {
+            padding: 20px;
+        }
+
+        .result-prediction {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .result-confidence {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .result-time {
+            color: #9090a0;
+            font-size: 0.85em;
+        }
+
+        .prediction-green { color: #4ade80; }
+        .prediction-light { color: #fbbf24; }
+        .prediction-medium { color: #fb923c; }
+        .prediction-dark { color: #7c3aed; }
+
+        .confidence-high { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+        .confidence-medium { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .confidence-low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9090a0;
+            font-size: 1.2em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #b0b0c0;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #ffd89b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8em; }
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+            .stat-value { font-size: 2em; }
+            .results-grid { grid-template-columns: 1fr; }
+            .section-header { flex-direction: column; gap: 15px; }
+        }
+
+        .auto-refresh-indicator {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RoastVision AI</h1>
+            <p class="subtitle">Coffee Bean Roasting Classification Dashboard</p>
+        </header>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card total">
+                <div class="stat-label">Total Hari Ini</div>
+                <div class="stat-value" id="totalCount">0</div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-label">Green Beans</div>
+                <div class="stat-value" id="greenCount">0</div>
+            </div>
+            <div class="stat-card light">
+                <div class="stat-label">Light Roast</div>
+                <div class="stat-value" id="lightCount">0</div>
+            </div>
+            <div class="stat-card medium">
+                <div class="stat-label">Medium Roast</div>
+                <div class="stat-value" id="mediumCount">0</div>
+            </div>
+            <div class="stat-card dark">
+                <div class="stat-label">Dark Roast</div>
+                <div class="stat-value" id="darkCount">0</div>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2 class="chart-title">Distribusi Klasifikasi</h2>
+            <div class="chart-container">
+                <div class="bar-chart" id="barChart"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="auto-refresh-indicator">
+        ● Auto-refresh aktif (5s)
+    </div>
+
+    <script>
+        let autoRefreshInterval;
+
+        async function loadData() {
+            try {
+                const response = await fetch('/api/results/today');
+                const data = await response.json();
+                
+                updateStats(data.counts);
+                updateChart(data.counts);
+                updateResults(data.results);
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('resultsGrid').innerHTML = 
+                    '<div class="no-results">Gagal memuat data</div>';
+            }
+        }
+
+        function updateStats(counts) {
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('greenCount').textContent = counts.Green || 0;
+            document.getElementById('lightCount').textContent = counts.Light || 0;
+            document.getElementById('mediumCount').textContent = counts.Medium || 0;
+            document.getElementById('darkCount').textContent = counts.Dark || 0;
+        }
+
+        function updateChart(counts) {
+            const chartData = [
+                { label: 'Green', value: counts.Green || 0, color: '#4ade80', colorLight: '#86efac' },
+                { label: 'Light', value: counts.Light || 0, color: '#fbbf24', colorLight: '#fcd34d' },
+                { label: 'Medium', value: counts.Medium || 0, color: '#fb923c', colorLight: '#fdba74' },
+                { label: 'Dark', value: counts.Dark || 0, color: '#7c3aed', colorLight: '#a78bfa' }
+            ];
+
+            const maxValue = Math.max(...chartData.map(d => d.value), 1);
+            const chartHTML = chartData.map(item => {
+                const heightPercent = (item.value / maxValue) * 100;
+                return `
+                    <div class="bar" style="height: ${heightPercent}%; --bar-color: ${item.color}; --bar-color-light: ${item.colorLight};">
+                        <div class="bar-value">${item.value}</div>
+                        <div class="bar-label">${item.label}</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('barChart').innerHTML = chartHTML;
+        }
+
+        function updateResults(results) {
+            const grid = document.getElementById('resultsGrid');
+            
+            if (results.length === 0) {
+                grid.innerHTML = '<div class="no-results">📭 Belum ada hasil klasifikasi hari ini</div>';
+                return;
+            }
+
+            const cardsHTML = results.map(item => {
+                const predClass = `prediction-${item.prediction.toLowerCase()}`;
+                const confClass = item.confidence >= 80 ? 'confidence-high' : 
+                                 item.confidence >= 60 ? 'confidence-medium' : 'confidence-low';
+                const time = new Date(item.created_at).toLocaleString('id-ID', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
+                // return `
+                //     <div class="result-card">
+                //         <img src="${item.file_url}?v=${Date.now()}" alt="${item.filename}" class="result-image" 
+                //              onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22280%22 height=%22200%22%3E%3Crect fill=%22%232d2d44%22 width=%22280%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%239090a0%22 font-size=%2216%22%3EGambar tidak tersedia%3C/text%3E%3C/svg%3E'">
+                //         <div class="result-info">
+                //             <div class="result-prediction ${predClass}">
+                //                 ${item.prediction}
+                //             </div>
+                //             <div class="result-confidence ${confClass}">
+                //                 ${item.confidence}% Akurasi
+                //             </div>
+                //             <div class="result-time">
+                //                 🕐 ${time}
+                //             </div>
+                //         </div>
+                //     </div>
+                // `;
+            }).join('');
+
+            grid.innerHTML = cardsHTML;
+        }
+
+        // Load data saat halaman dimuat
+        loadData();
+
+        // Auto-refresh setiap 5 detik
+        autoRefreshInterval = setInterval(loadData, 5000);
+
+        // Cleanup saat halaman ditutup
+        window.addEventListener('beforeunload', () => {
+            clearInterval(autoRefreshInterval);
+        });
+    </script>
+</body>
+</html>
